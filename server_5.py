@@ -1,44 +1,27 @@
 import socket
-import threading
+import pickle
 
-LOCALHOST = "127.0.0.1"
-PORT = 1488
+def cypher(s, K):
+    cyphered_string = [chr(ord(s[i]) ^ K) for i in range(len(s))]
+    return ''.join(cyphered_string)
 
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+HOST = '127.0.0.1'
+PORT = 8080
 
-server.bind((LOCALHOST, PORT))
-print('Server is available!')
+sock = socket.socket()
+sock.bind((HOST, PORT))
+sock.listen(1)
+conn, addr = sock.accept()
 
-class ClientThread(threading.Thread):
-    def __init__(self, clientAddress, clientsocket):
-        threading.Thread.__init__(self)
-        self.csocket = clientsocket
-        print("New User: ", clientAddress)
+msg = conn.recv(1024)
+p, g, A = pickle.loads(msg)
+b = 4
+B = g**b % p
+conn.send(pickle.dumps(B))
+K = A**b % p
+print(K)
+msg1 = cypher(pickle.loads(conn.recv(1024)), K)
+print(msg1)
 
-    def run(self):
-        msg = ''
-        while True:
-            data = self.csocket.recv(4096)
-            msg = data.decode()
-            print(msg)
-            if msg == 'STOP':
-                print('Disconnection...')
-                break
-            elif msg == 'Как дела?':
-                self.csocket.send(bytes("Отлично!", "UTF-8"))
-            elif msg[0:2] == 'DH':
-                b = 12
-                lst = list(map(int, msg[4:].split(',')))
-                B = lst[0]**b % lst[1]
-                K = lst[2]**b % lst[1]
-                print(K)
-                self.csocket.send(bytes(f"{B}", "UTF-8"))
-            else:
-                self.csocket.send(bytes("Умею отвечать только на как дела.", "UTF-8"))
-
-while True:
-    server.listen(1)
-    clientsock, clientAddress = server.accept()
-    newthread = ClientThread(clientAddress, clientsock)
-    newthread.start()
+conn.send(pickle.dumps(cypher('О, Дивный новый мир!', K)))
+conn.close()
